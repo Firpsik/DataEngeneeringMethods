@@ -1,0 +1,2 @@
+# Data Mart views directory
+# Views will be added here as needed

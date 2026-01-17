@@ -1,0 +1,2 @@
+# Data Mart tables directory
+# Tables will be added here as needed

@@ -1,0 +1,2 @@
+# Data Mart functions directory
+# Functions will be added here as needed
