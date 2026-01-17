@@ -18,11 +18,29 @@ services:
       timeout: 5s
       retries: 5
   
+  mysql:
+    image: mysql:8.0
+    container_name: etl-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: etl_mysql
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  
   etl-pipeline:
     build: .
     container_name: etl-pipeline
     depends_on:
       postgres:
+        condition: service_healthy
+      mysql:
         condition: service_healthy
     environment:
       DB_HOST: postgres
@@ -30,6 +48,11 @@ services:
       DB_NAME: etl_database
       DB_USER: postgres
       DB_PASSWORD: postgres
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DB: etl_mysql
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
     volumes:
       - ./data-pipeline:/app/data-pipeline
       - ./sql:/app/sql
@@ -37,3 +60,4 @@ services:
 
 volumes:
   postgres_data:
+  mysql_data:

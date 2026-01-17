@@ -1,86 +1,79 @@
-# Быстрый старт (Windows)
+# Инструкция по запуску
 
 ## Требования
 - Python 3.11+
 - Docker Desktop
-- PostgreSQL
-
-## Установка
-
-```powershell
-# 1. Клонировать репозиторий
-git clone https://github.com/Firpsik/Methods.git
-cd Methods
-
-# 2. Создать виртуальное окружение
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-
-# 3. Установить зависимости
-pip install -r requirements.txt
-```
 
 ## Запуск
 
-### Вариант 1: Docker (рекомендуется)
-
 ```powershell
-# Запустить PostgreSQL
-docker-compose up -d postgres
+# 1. Установить зависимости
+pip install -r requirements.txt
 
-# Подождать 10 секунд
+# 2. Запустить базы данных
+docker-compose up -d postgres mysql
 
-# Запустить ETL
+# 3. Подождать 15 секунд
+
+# 4. Запустить пайплайн
 python data-pipeline/main.py
 ```
 
-### Вариант 2: Локальная PostgreSQL
+## Результат
 
-```powershell
-# Создать базу данных (в psql)
-CREATE DATABASE etl_database;
+```
+STEP 1: ETL Pipeline
+✓ 1000 записей → 408 очищенных
 
-# Создать .env файл
-Copy-Item env.example .env
-# Отредактировать .env с вашими параметрами БД
+STEP 2: PostgreSQL DWH
+✓ Схема "звезда" создана
+✓ 5 справочников заполнены
 
-# Запустить ETL
-python data-pipeline/main.py
+STEP 3: Заполнение витрины
+✓ 408 записей в t_dm_task
+
+STEP 4: MySQL Data Mart
+✓ 408 записей загружено
 ```
 
-## Тестирование
+## Проверка данных
 
+### MySQL (основная витрина)
 ```powershell
-# Запустить все тесты
-pytest data-pipeline/tests/ -v
+docker exec etl-mysql mysql -u root -proot -e "SELECT COUNT(*) FROM s_sql_dm.t_dm_task;" 2>$null
+docker exec etl-mysql mysql -u root -proot -e "SELECT * FROM s_sql_dm.t_dm_task LIMIT 5;" 2>$null
+```
 
-# С покрытием кода
-pytest data-pipeline/tests/ -v --cov=data-pipeline/src --cov-report=html
-
-# Открыть отчет
-start htmlcov/index.html
+### PostgreSQL (DWH)
+```powershell
+docker exec etl-postgres psql -U postgres -d etl_database -c "SELECT * FROM s_psql_dds.d_customer LIMIT 5;"
+docker exec etl-postgres psql -U postgres -d etl_database -c "SELECT * FROM s_psql_dds.d_product_category;"
 ```
 
 ## Остановка
 
 ```powershell
-# Остановить контейнеры
 docker-compose down
-
-# Удалить данные БД
-docker-compose down -v
 ```
 
-## Ожидаемый результат
+## Архитектура
 
 ```
-ETL Pipeline Completed Successfully
-Records generated: 1000
-Records loaded to unstructured table: 1000
-Records processed to structured table: ~400-500
+[Raw Data] 
+    ↓ ETL
+[PostgreSQL: t_sql_source_structured] 
+    ↓ DM Load + Справочники
+[PostgreSQL: t_dm_task + d_*] (схема "звезда")
+    ↓ View: v_dm_task
+[MySQL: t_dm_stg_task] 
+    ↓ Процедура
+[MySQL: t_dm_task] ← ФИНАЛЬНАЯ ВИТРИНА
 ```
 
-```
-Tests: 10 passed, 1 skipped
-Code Coverage: 85%
-```
+## Что делает пайплайн
+
+1. **Генерирует** 1000 записей с аномалиями
+2. **Очищает** данные SQL-функцией
+3. **Создает** справочники (клиенты, категории, города, статусы, платежи)
+4. **Заполняет** таблицу фактов с FK на справочники
+5. **Переносит** данные в MySQL для финальной витрины
