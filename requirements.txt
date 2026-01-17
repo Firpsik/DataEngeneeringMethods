@@ -5,3 +5,4 @@ faker
 pytest
 pytest-cov
 python-dateutil
+mysql-connector-python
